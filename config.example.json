@@ -9,6 +9,15 @@
   "computer_port": 8400,
   "refresh_interval": 15,
   "loglevel": "INFO",
+  "location": {
+    "enabled": false,
+    "desktop_id": "halinuxcompanion",
+    "distance_threshold": 30,
+    "time_threshold": 0,
+    "heartbeat": 900,
+    "max_accuracy": 500,
+    "max_age": 3600
+  },
   "sensors": {
     "cpu": {
       "enabled": true,

@@ -1,5 +1,6 @@
 from halinuxcompanion.api import API, Server
 from halinuxcompanion.dbus import Dbus
+from halinuxcompanion.location import Location
 from halinuxcompanion.notifier import Notifier
 from halinuxcompanion.companion import Companion
 from halinuxcompanion.sensor import Sensor, SensorManager
@@ -92,6 +93,11 @@ async def main():
         notifier = Notifier()
         await notifier.init(bus, api, server, companion)
         await server.start()
+
+    # Location reporting, creates a device_tracker in Home Assistant
+    location = Location(api, companion)
+    if await location.init():
+        asyncio.create_task(location.heartbeat_task())
 
     interval = companion.refresh_interval
     # Loop forever updating sensors.

@@ -46,6 +46,19 @@ class SensorConfig(BaseModel):
     name: str
 
 
+class LocationConfig(BaseModel):
+    enabled: bool
+    desktop_id: str
+    # Defaulted rather than merely Optional: pydantic treats Optional without
+    # a default as required-but-nullable, which would force every tuning knob
+    # to be spelled out in the config to enable location at all.
+    distance_threshold: Optional[int] = None
+    time_threshold: Optional[int] = None
+    heartbeat: Optional[int] = None
+    max_accuracy: Optional[int] = None
+    max_age: Optional[int] = None
+
+
 class CompanionConfig(BaseModel):
     ha_url: str
     ha_token: str
@@ -58,6 +71,9 @@ class CompanionConfig(BaseModel):
     refresh_interval: Optional[int]
     sensors: Dict[str, SensorConfig]
     services: Optional[ServicesConfig]
+    # Defaulted so configuration files written before location reporting
+    # existed keep validating, since the section is entirely optional.
+    location: Optional[LocationConfig] = None
 
 
 logger = logging.getLogger("halinuxcompanion")
@@ -88,6 +104,20 @@ class Companion:
     refresh_interval: int = 15
     computer_ip: str = ""
     computer_port: int = 8400
+    location_enabled: bool = False
+    location_desktop_id: str = ""
+    # Every emitted fix can be this far behind where the device actually
+    # stopped, since GeoClue stays quiet until the threshold is crossed.
+    location_distance_threshold: int = 30
+    # 0 leaves GeoClue's own default, i.e. distance drives the updates.
+    location_time_threshold: int = 0
+    location_heartbeat: int = 900
+    # Rejects cell-tower-grade fixes (kilometres) while accepting the wifi
+    # lookups a desktop without GNSS relies on, which are usually tens to a
+    # couple hundred metres. Devices with a real GNSS receiver can afford to
+    # set this far tighter.
+    location_max_accuracy: int = 500
+    location_max_age: int = 3600
     ha_url: str = "http://localhost:8123"
     ha_token: str
     url_program: str = ""
@@ -117,6 +147,20 @@ class Companion:
             if config.refresh_interval
             else self.refresh_interval
         )
+
+        if config.location:
+            self.location_enabled = config.location.enabled
+            self.location_desktop_id = config.location.desktop_id
+            if config.location.distance_threshold is not None:
+                self.location_distance_threshold = config.location.distance_threshold
+            if config.location.time_threshold is not None:
+                self.location_time_threshold = config.location.time_threshold
+            if config.location.heartbeat is not None:
+                self.location_heartbeat = config.location.heartbeat
+            if config.location.max_accuracy is not None:
+                self.location_max_accuracy = config.location.max_accuracy
+            if config.location.max_age is not None:
+                self.location_max_age = config.location.max_age
 
         from halinuxcompanion.sensors import __all__ as all_sensors
 

@@ -49,6 +49,15 @@ Now in your Home Assistant you will see a new device in the **"mobile_app"** int
   "computer_port": 8400,
   "refresh_interval": 15,
   "loglevel": "INFO",
+  "location": {
+    "enabled": false,
+    "desktop_id": "halinuxcompanion",
+    "distance_threshold": 30,
+    "time_threshold": 0,
+    "heartbeat": 900,
+    "max_accuracy": 500,
+    "max_age": 3600
+  },
   "sensors": {
     "cpu": {
       "enabled": true,
@@ -114,6 +123,44 @@ Now in your Home Assistant you will see a new device in the **"mobile_app"** int
 }
 ```
 
+## Location
+
+Optional, disabled unless the `location` section sets `"enabled": true`. When on,
+the application asks [GeoClue](https://gitlab.freedesktop.org/geoclue/geoclue) for
+the machine's position and posts it to Home Assistant, which creates a
+`device_tracker` entity for the device. No registration step is needed: Home
+Assistant creates the tracker from the first update.
+
+GeoClue must be running on the system bus, and `desktop_id` has to match an
+installed `.desktop` file — GeoClue's agent authorizes clients by that id, and an
+unknown one leaves the client started but never receiving a fix.
+
+**How well this works depends entirely on what the machine can position with.** A
+device with a GNSS receiver (a Linux phone, or a laptop with a WWAN module that
+exposes GPS) gets fixes accurate to a few metres. A typical desktop or laptop has
+no GNSS at all, so GeoClue falls back to a wifi-based lookup, which is usually
+accurate to tens or hundreds of metres and depends on the surrounding access
+points being present in the database it queries. On a machine that never moves,
+that may still be all you need for a home/away zone; it is not a substitute for a
+phone's tracker, and it can be wrong by a street.
+
+| Option | Default | Meaning |
+| --- | --- | --- |
+| `enabled` | `false` | Whether to report position at all. |
+| `desktop_id` | – | Must match an installed `.desktop` file, see above. |
+| `distance_threshold` | `30` | Metres of movement before GeoClue emits an update. Larger values save power, and cost accuracy: the last reported position can be this far behind where the device actually stopped. |
+| `time_threshold` | `0` | Seconds between GeoClue updates. `0` leaves GeoClue's own default, i.e. distance drives updates. |
+| `heartbeat` | `900` | Seconds after which the current position is reported even if the device has not moved. `0` disables it. |
+| `max_accuracy` | `500` | Metres. Fixes reported as less accurate than this are ignored rather than sent. Tighten it on a device with GNSS; raise it if a wifi-positioned machine reports nothing. |
+| `max_age` | `3600` | Seconds. A fix older than this is not reported, so Home Assistant shows a stale tracker rather than a confident wrong position. `0` disables the check. |
+
+The `max_accuracy` and `max_age` checks exist because the `update_location`
+webhook carries no timestamp — Home Assistant stamps whatever arrives as current.
+Without them, a coarse or stale fix is indistinguishable from a good one, and the
+device sits confidently in the wrong place. For the same reason the heartbeat
+re-reads GeoClue instead of resending the last payload, and sends nothing at all
+when there is no usable fix.
+
 ## Technical
 
 - [Home Assistant Native App Integration](https://developers.home-assistant.io/docs/api/native-app-integration)
@@ -145,6 +192,8 @@ Now in your Home Assistant you will see a new device in the **"mobile_app"** int
   - Status: Computer status, reflects if the computer went to sleep, wakes up, shutdown, turned on. The sensor is updated right before any of these events happen by listening to dbus signals.
   - Battery Level
   - Batter State
+- Location: reports position through GeoClue as a `device_tracker`, for presence
+  and zone automations. Optional and off by default, see [Location](#location).
 - Notifications:
   - [Actionable Notifications](https://companion.home-assistant.io/docs/notifications/actionable-notifications#building-actionable-notifications) (Triggers event in Home Assistant)
       - [Local action handler using URI](https://companion.home-assistant.io/docs/notifications/actionable-notifications#uri-values): only relative style `/lovelace/myviwew` and `http(s)` uri supported so far.
